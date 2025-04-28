@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoPunk RWA Platform Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* 기본 폰트 및 스크롤바 스타일 (선택 사항) */
+        body {
+            font-family: 'Inter', sans-serif; /* Tailwind 기본 폰트와 유사 */
+        }
+        /* 스크롤바 디자인 (선택 사항) */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #bdbdbd;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0a0a0;
+        }
+         /* 기본 한글 폰트 적용 */
+        body, button, input, textarea, select {
+             font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+        }
+        /* 필요시 Pretendard 웹폰트 추가 */
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+    </style>
+</head>
+<body>
+    <noscript>이 앱을 실행하려면 JavaScript를 활성화해야 합니다.</noscript>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Babel이 이 스크립트 태그 안의 JSX를 변환합니다.
+
+        const { useState, useMemo, Fragment } = React; // React Hooks 사용
+
+        // --- 타입 정의 (주석으로만 남김, 실제 타입스크립트 기능은 없음) ---
+        /*
+        type User = { id: string; role: 'issuer' | 'investor' | 'admin'; kycStatus: 'pending' | 'verified' | 'rejected' | 'not_started'; walletAddress?: string; };
+        type ProjectBase = { projectId: string; title: string; assetType: string; imageUrl: string; status: 'upcoming' | 'active' | 'funded' | 'expired' | 'cancelled'; };
+        type ProjectCardData = ProjectBase & { location?: string; expectedYield?: string; fundingTarget: number; fundingCurrent: number; ftoEndDate: string | Date; aiRating?: number; description?: string; };
+        */
+
+        // --- Mock 데이터 ---
+
+        const MOCK_USER/*: User*/ = {
+          id: 'user-001',
+          role: 'investor',
+          kycStatus: 'verified',
+          walletAddress: '0x1234...abcd',
+        };
+
+        const MOCK_PROJECTS/*: ProjectCardData[]*/ = [
+          { projectId: 'proj-001', title: '강남 빌딩 A 토큰', assetType: '부동산', imageUrl: 'https://placehold.co/600x400/3498db/ffffff?text=Gangnam+Building+A', location: '서울시 강남구', expectedYield: '연 6.5%', fundingTarget: 5000000000, fundingCurrent: 3200000000, ftoEndDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), status: 'active', aiRating: 4, description: '강남 중심업무지구에 위치한 프라임 오피스 빌딩입니다. 안정적인 임대 수익과 자산 가치 상승이 기대됩니다.' },
+          { projectId: 'proj-002', title: '신재생에너지 발전소 펀드', assetType: '인프라', imageUrl: 'https://placehold.co/600x400/2ecc71/ffffff?text=Renewable+Energy+Fund', location: '전라남도 해남군', expectedYield: '연 8.0%', fundingTarget: 10000000000, fundingCurrent: 1500000000, ftoEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), status: 'active', aiRating: 5, description: '태양광 및 풍력 발전을 통해 안정적인 전력 판매 수익을 추구하는 친환경 인프라 펀드입니다.' },
+          { projectId: 'proj-003', title: '김환기 화백 작품 "우주"', assetType: '미술품', imageUrl: 'https://placehold.co/600x400/9b59b6/ffffff?text=Artwork+Universe', location: '서울시 종로구', expectedYield: '자산 가치 상승', fundingTarget: 1000000000, fundingCurrent: 1000000000, ftoEndDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), status: 'funded', aiRating: 4, description: '한국 추상미술의 거장 김환기 화백의 대표작 "우주"의 소유권을 분할하여 투자합니다.' },
+          { projectId: 'proj-004', title: '제주도 리조트 개발 프로젝트', assetType: '부동산', imageUrl: 'https://placehold.co/600x400/f1c40f/ffffff?text=Jeju+Resort+Dev', location: '제주특별자치도 서귀포시', expectedYield: '연 12.0% (예상)', fundingTarget: 20000000000, fundingCurrent: 500000000, ftoEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), status: 'upcoming', aiRating: 3, description: '아름다운 제주 해변에 건설될 고급 리조트 개발 프로젝트입니다. 높은 수익률이 기대되지만 개발 리스크가 존재합니다.' },
+        ];
+
+        const MOCK_PORTFOLIO = {
+          summary: { totalValue: 15500000, totalInvested: 12000000, overallReturn: ((15500000 - 12000000) / 12000000) * 100, assetAllocation: { '부동산': 60, '미술품': 40 }, },
+          holdings: [ { projectId: 'proj-001', tokenSymbol: 'BLDA', quantity: 750, currentValue: 9000000, acquisitionCost: 7500000, lastUpdate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), }, { projectId: 'proj-003', tokenSymbol: 'ARTU', quantity: 45, currentValue: 6500000, acquisitionCost: 4500000, lastUpdate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), }, ],
+          transactions: [ { type: 'buy', amount: 7500000, currency: 'KRW', timestamp: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000), relatedProject: 'proj-001' }, { type: 'buy', amount: 4500000, currency: 'KRW', timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), relatedProject: 'proj-003' }, { type: 'dividend', amount: 150000, currency: 'KRW', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), relatedProject: 'proj-001' }, ],
+          notifications: [ { id: 'n001', type: 'dividend', message: '강남 빌딩 A 토큰에서 150,000 KRW의 배당금이 지급되었습니다.', isRead: false, timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }, { id: 'n002', type: 'report', message: '신재생에너지 발전소 펀드 1분기 운영 보고서가 발행되었습니다.', isRead: true, timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) }, ],
+        };
+
+        // --- 공통 컴포넌트 구현 ---
+
+        const Layout = ({ currentUser, children, currentView, setView }) => {
+          return (
+            <div className="min-h-screen bg-gray-100 font-sans">
+              {/* 헤더 */}
+              <header className="bg-white shadow-md sticky top-0 z-10">
+                <nav className="container mx-auto px-4 py-3 flex justify-between items-center">
+                  <div className="text-2xl font-bold text-blue-600">EcoPunk</div>
+                  <div className="flex items-center space-x-4">
+                    {currentUser && (
+                      <Fragment>
+                        {/* 네비게이션 버튼 */}
+                        <button
+                          onClick={() => setView('launchpad')}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${currentView === 'launchpad' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                          런치패드
+                        </button>
+                        <button
+                          onClick={() => setView('dashboard')}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${currentView === 'dashboard' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                          투자 터미널
+                        </button>
+                        <KYCStatusIndicator status={currentUser.kycStatus} />
+                        <WalletConnectButton onConnect={() => {}} onDisconnect={() => {}} onError={() => {}} />
+                      </Fragment>
+                    )}
+                    {!currentUser && <button className="text-sm text-blue-600 hover:underline">로그인</button>}
+                  </div>
+                </nav>
+              </header>
+
+              {/* 메인 컨텐츠 */}
+              <main className="container mx-auto px-4 py-8">
+                {children}
+              </main>
+
+              {/* 푸터 */}
+              <footer className="text-center py-4 text-gray-500 text-xs border-t border-gray-200 mt-12">
+                © 2025 EcoPunk RWA Platform. All rights reserved.
+              </footer>
+            </div>
+          );
+        };
+
+        const WalletConnectButton = () => {
+          const [isConnected, setIsConnected] = useState(true); // 데모용: 기본 연결됨
+          const address = MOCK_USER.walletAddress;
+
+          return (
+            <button
+              onClick={() => setIsConnected(!isConnected)}
+              className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold py-1.5 px-3 rounded-full shadow transition duration-150 ease-in-out"
+            >
+              {isConnected && address ? `${address.substring(0, 6)}...${address.substring(address.length - 4)}` : '지갑 연결'}
+            </button>
+          );
+        };
+
+        const KYCStatusIndicator = ({ status }) => {
+          const statusMap = {
+            verified: { text: 'KYC 인증됨', color: 'bg-green-100 text-green-800' },
+            pending: { text: 'KYC 검토중', color: 'bg-yellow-100 text-yellow-800' },
+            rejected: { text: 'KYC 반려됨', color: 'bg-red-100 text-red-800' },
+            not_started: { text: 'KYC 미인증', color: 'bg-gray-100 text-gray-800' },
+          };
+          const currentStatus = statusMap[status];
+          return (
+            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${currentStatus.color}`}>
+              {currentStatus.text}
+            </span>
+          );
+        };
+
+        const ProjectCard = ({ project, onClick }) => {
+          const fundingProgress = project.fundingTarget > 0 ? (project.fundingCurrent / project.fundingTarget) * 100 : 0;
+          const endDate = new Date(project.ftoEndDate);
+          const now = new Date();
+          const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+          const getStatusBadge = (status) => {
+              switch(status) {
+                  case 'active': return <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-semibold px-2 py-0.5 rounded">모집중</span>;
+                  case 'upcoming': return <span className="absolute top-2 right-2 bg-yellow-500 text-white text-xs font-semibold px-2 py-0.5 rounded">예정</span>;
+                  case 'funded': return <span className="absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded">모집완료</span>;
+                  case 'expired': return <span className="absolute top-2 right-2 bg-gray-500 text-white text-xs font-semibold px-2 py-0.5 rounded">기간만료</span>;
+                  default: return null;
+              }
+          }
+
+          return (
+            <div
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer flex flex-col"
+              onClick={() => onClick(project.projectId)}
+            >
+              <div className="relative">
+                {/* 이미지 에러 처리 추가 */}
+                <img
+                    src={project.imageUrl}
+                    alt={project.title}
+                    className="w-full h-48 object-cover"
+                    onError={(e) => { e.currentTarget.src = 'https://placehold.co/600x400/cccccc/ffffff?text=Image+Error'; }} // Placeholder image on error
+                />
+                {getStatusBadge(project.status)}
+                {project.aiRating && (
+                  <div className="absolute bottom-2 left-2 bg-white bg-opacity-80 px-2 py-1 rounded text-xs font-semibold flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-500 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    AI 등급: {project.aiRating}/5
+                  </div>
+                )}
+              </div>
+              <div className="p-4 flex-grow flex flex-col justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold mb-1 text-gray-800">{project.title}</h3>
+                  <p className="text-sm text-gray-500 mb-2">{project.assetType} {project.location ? `| ${project.location}` : ''}</p>
+                  <p className="text-sm text-gray-600 mb-3">예상 수익률: <span className="font-medium text-blue-600">{project.expectedYield || 'N/A'}</span></p>
+                </div>
+                <div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${fundingProgress}%` }}></div>
+                  </div>
+                  <div className="text-xs text-gray-600 flex justify-between mb-2">
+                    <span>{fundingProgress.toFixed(1)}% 달성</span>
+                    <span>{project.status === 'active' ? `${daysLeft}일 남음` : project.status === 'funded' ? '모집 완료' : project.status === 'upcoming' ? '모집 예정' : '기간 만료'}</span>
+                  </div>
+                  <p className="text-sm font-semibold text-right text-gray-800">
+                    {project.fundingCurrent.toLocaleString()} / {project.fundingTarget.toLocaleString()} 원
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const Modal = ({ isOpen, title, children, onClose, footerContent }) => {
+          if (!isOpen) return null;
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 transition-opacity duration-300">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center p-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto flex-grow">
+                  {children}
+                </div>
+                {footerContent && (
+                  <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                    {footerContent}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+
+        // --- 투자자 관련 컴포넌트 구현 ---
+
+        const LaunchpadProjectList = ({ projects, onProjectClick }) => {
+          const [filterStatus, setFilterStatus] = useState('all');
+
+          const filteredProjects = useMemo(() => {
+              if (filterStatus === 'all') return projects;
+              return projects.filter(p => p.status === filterStatus);
+          }, [projects, filterStatus]);
+
+          return (
+            <div>
+                <div className="mb-6 flex space-x-2">
+                    <button onClick={() => setFilterStatus('all')} className={`px-4 py-1 rounded-full text-sm ${filterStatus === 'all' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 border'}`}>전체</button>
+                    <button onClick={() => setFilterStatus('active')} className={`px-4 py-1 rounded-full text-sm ${filterStatus === 'active' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 border'}`}>모집중</button>
+                    <button onClick={() => setFilterStatus('upcoming')} className={`px-4 py-1 rounded-full text-sm ${filterStatus === 'upcoming' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 border'}`}>예정</button>
+                    <button onClick={() => setFilterStatus('funded')} className={`px-4 py-1 rounded-full text-sm ${filterStatus === 'funded' ? 'bg-blue-500 text-white' : 'bg-white text-gray-700 border'}`}>모집완료</button>
+                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredProjects.length > 0 ? (
+                    filteredProjects.map(project => (
+                      <ProjectCard key={project.projectId} project={project} onClick={onProjectClick} />
+                    ))
+                ) : (
+                    <p className="text-gray-500 col-span-full text-center py-8">해당 상태의 프로젝트가 없습니다.</p>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const ProjectDetailView = ({ project, onClose, currentUser }) => {
+          const [investmentAmount, setInvestmentAmount] = useState('');
+
+          if (!project) return null;
+
+          const handleInvest = () => {
+              if (!currentUser || currentUser.kycStatus !== 'verified') {
+                  alert('KYC 인증 완료 후 투자할 수 있습니다.');
+                  return;
+              }
+              if (!investmentAmount || isNaN(Number(investmentAmount)) || Number(investmentAmount) <= 0) {
+                  alert('올바른 투자 금액을 입력하세요.');
+                  return;
+              }
+              // 실제 투자 로직 (스마트 컨트랙트 호출 등)은 여기에 구현
+              alert(`${project.title}에 ${Number(investmentAmount).toLocaleString()}원 투자를 요청합니다. (데모)`);
+              onClose(); // 데모에서는 모달 닫기
+          }
+
+          const canInvest = project.status === 'active' && currentUser?.kycStatus === 'verified';
+
+          return (
+            <Modal isOpen={!!project} title={project.title} onClose={onClose}>
+              <div className="space-y-6">
+                 {/* 이미지 에러 처리 추가 */}
+                <img
+                    src={project.imageUrl}
+                    alt={project.title}
+                    className="w-full h-64 object-cover rounded-lg mb-4"
+                    onError={(e) => { e.currentTarget.src = 'https://placehold.co/600x400/cccccc/ffffff?text=Image+Error'; }}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">자산 유형:</strong> {project.assetType}</p>
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">위치:</strong> {project.location || 'N/A'}</p>
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">예상 수익률:</strong> {project.expectedYield || 'N/A'}</p>
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">AI 등급:</strong> {project.aiRating ? `${project.aiRating}/5` : 'N/A'}</p>
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">모집 목표액:</strong> {project.fundingTarget.toLocaleString()} 원</p>
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">현재 모집액:</strong> {project.fundingCurrent.toLocaleString()} 원</p>
+                  <p><strong className="font-semibold text-gray-700 w-24 inline-block">모집 마감일:</strong> {new Date(project.ftoEndDate).toLocaleDateString()}</p>
+                   <p><strong className="font-semibold text-gray-700 w-24 inline-block">상태:</strong> {project.status}</p>
+                </div>
+
+                <div>
+                  <h4 className="text-md font-semibold mb-2 text-gray-800">프로젝트 설명</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">{project.description || '상세 설명이 없습니다.'}</p>
+                </div>
+
+                {/* 투자 섹션 */}
+                {project.status === 'active' && (
+                  <div className="border-t pt-4 mt-6">
+                    <h4 className="text-md font-semibold mb-3 text-gray-800">투자하기</h4>
+                    {currentUser?.kycStatus === 'verified' ? (
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="number"
+                          value={investmentAmount}
+                          onChange={(e) => setInvestmentAmount(e.target.value)}
+                          placeholder="투자 금액 (KRW)"
+                          className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          min="100000" // 예시: 최소 투자금액 10만원
+                          step="10000"
+                        />
+                        <button
+                          onClick={handleInvest}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={!canInvest}
+                        >
+                          투자 실행
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                        {currentUser ? 'KYC 인증 완료 후 투자가 가능합니다.' : '로그인 및 KYC 인증 후 투자가 가능합니다.'}
+                      </p>
+                    )}
+                  </div>
+                )}
+                 {project.status !== 'active' && (
+                     <p className="text-sm text-gray-500 text-center mt-6">현재 이 프로젝트는 투자가 불가능합니다.</p>
+                 )}
+              </div>
+            </Modal>
+          );
+        };
+
+
+        const InvestorTerminalDashboard = ({ portfolioData }) => {
+          return (
+            <div className="space-y-8">
+              {/* 포트폴리오 요약 */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">포트폴리오 요약</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                  <div> <p className="text-sm text-gray-500">총 평가액</p> <p className="text-2xl font-bold text-blue-600">{portfolioData.summary.totalValue.toLocaleString()} 원</p> </div>
+                  <div> <p className="text-sm text-gray-500">총 투자 원금</p> <p className="text-lg text-gray-700">{portfolioData.summary.totalInvested.toLocaleString()} 원</p> </div>
+                  <div> <p className="text-sm text-gray-500">전체 수익률</p> <p className={`text-lg font-semibold ${portfolioData.summary.overallReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}> {portfolioData.summary.overallReturn.toFixed(2)}% </p> </div>
+                </div>
+                {/* 자산 배분 차트 (간단 표시) */}
+                <div className="mt-6">
+                   <p className="text-sm text-gray-500 mb-2 text-center">자산 배분</p>
+                   <div className="flex h-4 rounded-full overflow-hidden bg-gray-200">
+                       {Object.entries(portfolioData.summary.assetAllocation).map(([type, percent], index) => (
+                           <div key={index} className={`h-full ${index === 0 ? 'bg-indigo-500' : 'bg-teal-500'}`} style={{ width: `${percent}%` }} title={`${type}: ${percent}%`}></div>
+                       ))}
+                   </div>
+                    <div className="flex justify-center mt-2 space-x-4 text-xs">
+                         {Object.entries(portfolioData.summary.assetAllocation).map(([type, percent], index) => (
+                             <span key={index} className="flex items-center">
+                                 <span className={`w-2 h-2 rounded-full mr-1.5 ${index === 0 ? 'bg-indigo-500' : 'bg-teal-500'}`}></span>
+                                 {type} ({percent}%)
+                             </span>
+                         ))}
+                    </div>
+                </div>
+              </div>
+
+              {/* 보유 자산 목록 */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">보유 자산</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left text-gray-600">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                      <tr> <th scope="col" className="px-4 py-3">자산명 (심볼)</th> <th scope="col" className="px-4 py-3 text-right">보유 수량</th> <th scope="col" className="px-4 py-3 text-right">현재 평가액</th> <th scope="col" className="px-4 py-3 text-right">수익률</th> </tr>
+                    </thead>
+                    <tbody>
+                      {portfolioData.holdings.map(holding => {
+                          const gainLoss = holding.currentValue - holding.acquisitionCost;
+                          // 0으로 나누는 경우 방지
+                          const returnPercent = holding.acquisitionCost !== 0 ? (gainLoss / holding.acquisitionCost) * 100 : 0;
+                          return (
+                              <tr key={holding.projectId} className="bg-white border-b hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium text-gray-900"> {MOCK_PROJECTS.find(p => p.projectId === holding.projectId)?.title || holding.projectId} ({holding.tokenSymbol}) </td>
+                                <td className="px-4 py-3 text-right">{holding.quantity.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right">{holding.currentValue.toLocaleString()} 원</td>
+                                <td className={`px-4 py-3 text-right font-medium ${returnPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}> {returnPercent.toFixed(2)}% </td>
+                              </tr>
+                          );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 최근 거래 내역 */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">최근 거래 내역</h3>
+                <ul className="space-y-3">
+                  {portfolioData.transactions.map((tx, index) => (
+                    <li key={index} className="flex justify-between items-center text-sm border-b pb-2 last:border-b-0">
+                      <div> <span className={`font-medium ${tx.type === 'buy' ? 'text-blue-600' : tx.type === 'dividend' ? 'text-green-600' : 'text-gray-800'}`}> {tx.type === 'buy' ? '매수' : tx.type === 'dividend' ? '배당' : '거래'} </span> {tx.relatedProject && ` - ${MOCK_PROJECTS.find(p => p.projectId === tx.relatedProject)?.title || tx.relatedProject}`} </div>
+                      <div className="text-right"> <p className="font-semibold">{tx.amount.toLocaleString()} {tx.currency}</p> <p className="text-xs text-gray-500">{new Date(tx.timestamp).toLocaleString()}</p> </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+               {/* 알림 */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-semibold mb-4 text-gray-800">알림</h3>
+                <ul className="space-y-3">
+                    {portfolioData.notifications.map((noti) => (
+                        <li key={noti.id} className={`p-3 rounded-md text-sm ${noti.isRead ? 'bg-gray-50 text-gray-600' : 'bg-blue-50 text-blue-800'}`}>
+                            <strong className="font-semibold">[{noti.type === 'dividend' ? '배당' : noti.type === 'report' ? '보고서' : '알림'}]</strong> {noti.message}
+                            <span className="block text-xs text-right mt-1 opacity-70">{new Date(noti.timestamp).toLocaleString()}</span>
+                        </li>
+                    ))}
+                    {portfolioData.notifications.length === 0 && <p className="text-sm text-gray-500 text-center py-4">새로운 알림이 없습니다.</p>}
+                </ul>
+              </div>
+
+            </div>
+          );
+        };
+
+
+        // --- 애플리케이션 진입점 ---
+        const App = () => {
+          const [currentUser] = useState(MOCK_USER); // 데모용 사용자
+          const [currentView, setCurrentView] = useState('launchpad'); // 현재 보여줄 뷰
+          const [selectedProject, setSelectedProject] = useState(null); // 상세 보기 선택된 프로젝트
+
+          const handleProjectClick = (projectId) => {
+            const project = MOCK_PROJECTS.find(p => p.projectId === projectId);
+            if (project) {
+              setSelectedProject(project);
+            }
+          };
+
+          const handleCloseDetail = () => {
+            setSelectedProject(null);
+          };
+
+          return (
+            <Fragment>
+              <Layout currentUser={currentUser} currentView={currentView} setView={setCurrentView}>
+                {currentView === 'launchpad' && (
+                  <LaunchpadProjectList projects={MOCK_PROJECTS} onProjectClick={handleProjectClick} />
+                )}
+                {currentView === 'dashboard' && currentUser && (
+                  <InvestorTerminalDashboard portfolioData={MOCK_PORTFOLIO} />
+                )}
+              </Layout>
+
+              {/* 프로젝트 상세 보기 모달 */}
+              <ProjectDetailView
+                project={selectedProject}
+                onClose={handleCloseDetail}
+                currentUser={currentUser}
+              />
+            </Fragment>
+          );
+        };
+
+        // React 앱을 'root' div에 렌더링
+        ReactDOM.render(
+          <App />,
+          document.getElementById('root')
+        );
+
+    </script>
+</body>
+</html>
